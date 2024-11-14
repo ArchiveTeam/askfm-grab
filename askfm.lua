@@ -3,7 +3,7 @@ local http = require("socket.http")
 local https = require("ssl.https")
 local cjson = require("cjson")
 local utf8 = require("utf8")
-local html_entities = require('htmlEntities')
+local html_entities = require("htmlEntities")
 
 local item_dir = os.getenv("item_dir")
 local warc_file_base = os.getenv("warc_file_base")
@@ -68,9 +68,9 @@ end
 
 discover_item = function(target, item)
   if not target[item] then
---print('discovered', item)
+--print("discovered", item)
     target[item] = true
---local count = 0 for _ in pairs(target) do count = count + 1 end print('disco', count)
+--local count = 0 for _ in pairs(target) do count = count + 1 end print("disco", count)
     return true
   end
   return false
@@ -528,28 +528,29 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     body_data = nil
   end
 
-  local function queue_pages(partial_url, count)
-    if type(count) == "string" then
-      local num = ""
-      for s in string.gmatch("([0-9]+)", count) do
-        num = num .. s
-      end
-      if string.len(num) == 0 then
-        return nil
-      end
-      count = tonumber(num) / 25 + 1
+  local function calc_pages(count_s)
+    local num = ""
+    for s in string.gmatch(count_s, "([0-9]+)") do
+      num = num .. s
     end
+    if string.len(num) == 0 then
+      return 0
+    end
+    return math.ceil(tonumber(num)/25) + 1
+  end
+
+  local function queue_pages(partial_url, count)
     for i=1,count do
       check(partial_url .. tostring(i))
     end
   end
 
-  local function find_max(newurl, base_url)
+  local function find_max(newurl, base_url, start_step)
     if base_url then
       assert(not context["find_max"][newurl])
       context["find_max"][newurl] = {
         ["page"]=1,
-        ["step"]=1000,
+        ["step"]=start_step,
         ["prev_url"]=base_url,
         ["exists"]=true
       }
@@ -570,7 +571,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       if prev_step > 1 then
         next_step = math.ceil(prev_step/5)
       end
-      if next_step == 0 then
+      if next_step == 0
+        or prev_page == 1 then
         local page_num = string.match(newurl, "[%?&]page=([0-9]+)")
         local base_url = newurl
         while true do
@@ -580,7 +582,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           end
         end
         assert(base_url ~= newurl)
-        print('Found', tonumber(page_num)-1, 'for', base_url)
+        page_num = tonumber(page_num) - 1
+        print("Found " .. tostring(page_num) .. " pages for " .. base_url)
+        if page_num == 0 then
+          return nil
+        end
         return queue_pages(base_url, tonumber(page_num)-1)
       else
         local next_page = prev_page - prev_step + next_step
@@ -621,6 +627,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     html = read_file(file)
     find_max(url)
     local id = string.match(url, "([0-9]+)$")
+
     if string.match(url, "^https?://[^/]*ask%.fm/[^/]+/answers/[0-9]+$") then
       for d in string.gmatch(html, '<header class="streamItem_header"[^>]+>(.-)</header>') do
         if not string.match(d, '<a class="author[^>]+href="') then
@@ -639,6 +646,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           --queue_pages(url .. "/fans/" .. key .. "s?page=", count)
         end
       end
+
     elseif string.match(url, "^https?://[^/]*ask%.fm/[^/]+/photopolls/[0-9]+$") then
       local count = string.match(html, '<a class="voteCount" href="[^"]+/' .. id .. '">([^<]+)')
       if count and tonumber(string.match(count, "([0-9]+)")) > 0 then
@@ -646,8 +654,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         check(string.match(url, "^(https?://[^/]+/[^/]+/)") .. "answers/" .. id .. "/fans/votes?page=1")
         --queue_pages(url .. "?page=", count)
       end
-    --[[elseif string.match(url, "^https?://[^/]*ask%.fm/countries/[^/]+/shoutouts/[0-9]+$") then
-      local ]]
+
     elseif string.match(url, "^https://askfm%.site/[^/]+/threads/([0-9]+)$") then
       check("https://ask.fm/" .. string.match(url, "^https?://[^/]+/(.+)$"))
 
@@ -667,15 +674,22 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         end
       end
       assert(found > 0)
+
     elseif string.match(url, "^https?://[^/]*ask%.fm/[0-9a-zA-Z_%-]+$") then
       local answer_count = string.match(html, '<div title="([^"]+)" class="profileTabAnswerCount text%-large"')
       local like_count = string.match(html, '<div title="([^"]+)" class="profileTabLikeCount text%-large"')
       local base_url = url .. "?page="
+      local answer_step_start = 2 * (calc_pages(answer_count)+1)
+      if answer_step_start > 1000 then
+        answer_step_start = 0
+      end
+      print('found', answer_step_start)
       --queue_pages(base_url, answer_count)
-      find_max("https://ask.fm/" .. item_value .. "?page=1&no_prev_link=true", base_url)
-      find_max("https://ask.fm/" .. item_value .. "/questions?page=1&no_prev_link=true", url .. "/questions?page=")
+      find_max("https://ask.fm/" .. item_value .. "?page=1&no_prev_link=true", base_url, answer_step_start)
+      find_max("https://ask.fm/" .. item_value .. "/questions?page=1&no_prev_link=true", url .. "/questions?page=", answer_step_start)
       --find_max("https://ask.fm/" .. item_value .. "/versus?page=1&no_prev_link=true", url .. "/versus?page=")
     end
+
     for data in string.gmatch(html, '(data%-params="{[^"]+"[^>]+)') do
       local href = string.match(data, 'href="([^"]+)"')
       local params = string.match(data, 'data%-params="([^"]+)"')
@@ -691,6 +705,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       check(set_new_params(urlparse.absolute(url, href), params))
     end
+
     html = string.gsub(html, 'data%-params="{[^"]+"[^>]+', '')
     for newurl in string.gmatch(string.gsub(html, "&[qQ][uU][oO][tT];", '"'), '([^"]+)') do
       checknewurl(newurl)
@@ -860,7 +875,7 @@ wget.callbacks.finish = function(start_time, end_time, wall_time, numurls, total
     ["askfm-rojyushaevqzhbg7"] = discovered_items,
     ["urls-94gfdddny6p9k46p"] = discovered_outlinks
   }) do
-    print('queuing for', string.match(key, "^(.+)%-"))
+    print("queuing for", string.match(key, "^(.+)%-"))
     local items = nil
     local count = 0
     for item, _ in pairs(data) do
