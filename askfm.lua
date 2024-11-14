@@ -32,7 +32,7 @@ local is_initial_url = true
 
 abort_item = function(item)
   abortgrab = true
-  killgrab = true
+  --killgrab = true
   if not item then
     item = item_name
   end
@@ -783,6 +783,10 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     tries = tries + 1
     local maxtries = 5
+    if item_type == "asset"
+      and status_code == 403 then
+      maxtries = 0
+    end
     if tries > maxtries then
       io.stdout:write(" Skipping.\n")
       io.stdout:flush()
