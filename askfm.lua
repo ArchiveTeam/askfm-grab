@@ -68,7 +68,7 @@ end
 
 discover_item = function(target, item)
   if not target[item] then
-if string.match(item, "user%-page") then print('discovered', item) end
+--print('discovered', item)
     target[item] = true
 --local count = 0 for _ in pairs(target) do count = count + 1 end print('disco', count)
     return true
@@ -111,7 +111,10 @@ end
 set_item = function(url)
   found = find_item(url)
   if found then
-    local newcontext = {["find_max"]={}}
+    local newcontext = {
+      ["find_max"]={},
+      ["allow_question"]=false
+    }
     item_type_ = found["type"]
     if item_type_ == "user" then
       newcontext["user"] = item_value_
@@ -186,6 +189,7 @@ allowed = function(url, parenturl)
     or string.match(url, "^https?://[^/]+/[^/]+/answers/[0-9]+/fans/votes$")
     or string.match(url, "^https?://[^/]+/[^/]+/ask$")
     or string.match(url, "^https?://[^/]+/[^/]+/flag")
+    or string.match(url, "^https?://[^/]+/[^/]+/answers/poll%?newer=[0-9]+$")
     or string.match(url, "^https?://[^/]*/account/private%-")
     or string.match(url, "^https?://[^/]+/[^/]+/best%?.*page=")
     or string.match(url, "[%?&]no_next_link=true")
@@ -196,25 +200,32 @@ allowed = function(url, parenturl)
         string.match(parenturl, "[%?&]iterator=")
         or string.match(parenturl, "[%?&]page=1")
       )
+      and not (
+        string.match(parenturl, "^https?://[^/]+/[^/]+/versus")
+        or string.match(parenturl, "^https://[^/]+/countries/[a-z]+/shoutouts/")
+      )
     )
     or (
       item_type == "user"
       and (
-        string.match(url, "^https?://[^/]+/[^/]+/answers/[0-9]+$")
-        or string.match(url, "^https?://[^/]+/[^/]+/photopolls/[0-9]+$")
-        or string.match(url, "[%?&]iterator=[0-9]")
+        string.match(url, "^https?://[^/]+/[^/]+/answers?/[0-9]+$")
+        --or string.match(url, "^https?://[^/]+/[^/]+/photopolls/[0-9]+$")
+        or (
+          string.match(url, "[%?&]iterator=[0-9]")
+          and not string.match(url, "^https?://[^/]+/[^/]+/versus")
+        )
       )
     ) then
     return false
   end
-  
+
   local skip = false
   for pattern, type_ in pairs({
     ["^https?://ask%.fm/([0-9a-zA-Z_%-]+)"]="user",
     ["^https?://ask%.fm/([0-9a-zA-Z_%-]+)/?([a-z]*)%?page=([0-9]+)$"]="user-page",
     --["^https?://ask%.fm/([^/]+)/answer/([0-9]+)"]="answer",
     ["^https?://ask%.fm/countries/([^/]+)/shoutouts/([0-9]+)"]="question",
-    --["^https?://ask%.fm/([^/]+)/photopolls/([0-9]+)"]="photopoll",
+    ["^https?://ask%.fm/([^/]+)/photopolls/([0-9]+)"]="photopoll",
     ["^https?://askfm%.site/([^/]+)/threads/([0-9]+)"]="thread",
     ["^https?://ask%.fm/([^/]+)/threads/([0-9]+)"]="thread",
     ["^https?://(c[a-z][a-z][a-z]%.ask%.fm/.+)"]="asset",
@@ -227,14 +238,16 @@ allowed = function(url, parenturl)
         or match2 == ""
         or match2 == "questions"
         --or match2 == "versus"
-      )
-      and (
+      ) and (
         (
           type_ ~= "question"
           and type_ ~= "answer"
           and type_ ~= "photopoll"
         )
         or not ids[match2]
+      ) and (
+        type_ ~= "question"
+        or context["allow_question"]
       ) then
       if type_ == "question"
         or type_ == "photopoll"
@@ -247,7 +260,11 @@ allowed = function(url, parenturl)
       end
       local new_item = type_ .. ":" .. match
       if new_item ~= item_name
-        and context["user"] ~= match
+        and (
+          context["user"] ~= match
+          or item_type ~= "user"
+          or type_ == "photopoll"
+        )
         and (
           type_ ~= "user"
           or match ~= "countries"
@@ -268,11 +285,11 @@ allowed = function(url, parenturl)
     discover_item(discovered_outlinks, string.match(percent_encode_url(url), "^([^%s]+)"))
     return false
   end
-  
+
   if ids[string.lower(string.match(url, "^https?://(.+)$"))] then
     return true
   end
-  
+
   if item_type == "user-page"
     and string.match(url, "^https?://[^/]+/([^%?/]+)") == context["user"]
     and string.match(url, "[%?&]page=([0-9]+)") == context["page"] then
@@ -337,7 +354,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
   local html = nil
   local json = nil
   local body_data = nil
-  
+
   downloaded[url] = true
 
   if abortgrab then
@@ -526,7 +543,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(partial_url .. tostring(i))
     end
   end
-  
+
   local function find_max(newurl, base_url)
     if base_url then
       assert(not context["find_max"][newurl])
@@ -597,7 +614,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(next_url)
     end
   end
-        
+
   if allowed(url)
     and status_code < 300
     and not string.match(url, "^https?://c[a-z][a-z][a-z]%.ask%.fm/.") then
@@ -605,6 +622,16 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     find_max(url)
     local id = string.match(url, "([0-9]+)$")
     if string.match(url, "^https?://[^/]*ask%.fm/[^/]+/answers/[0-9]+$") then
+      for d in string.gmatch(html, '<header class="streamItem_header"[^>]+>(.-)</header>') do
+        if not string.match(d, '<a class="author[^>]+href="') then
+          local question_url = string.match(d, 'href="(https?://[^/]*/countries/[a-z]+/shoutouts/[0-9]+)"')
+          if question_url then
+            context["allow_question"] = true
+            check(question_url)
+            context["allow_question"] = false
+          end
+        end
+      end
       for _, key in pairs({"like", "reward"}) do
         local count = string.match(html, '<a class="icon%-' .. key .. '"[^>]+>%s*</a>%s*<a class="counter" href="[^"]+/' .. id .. '">([^<]+)')
         if count and tonumber(string.match(count, "([0-9]+)")) > 0 then
@@ -614,7 +641,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
     elseif string.match(url, "^https?://[^/]*ask%.fm/[^/]+/photopolls/[0-9]+$") then
       local count = string.match(html, '<a class="voteCount" href="[^"]+/' .. id .. '">([^<]+)')
-print(url, count)
       if count and tonumber(string.match(count, "([0-9]+)")) > 0 then
         -- yes with /answers/
         check(string.match(url, "^(https?://[^/]+/[^/]+/)") .. "answers/" .. id .. "/fans/votes?page=1")
@@ -624,7 +650,7 @@ print(url, count)
       local ]]
     elseif string.match(url, "^https://askfm%.site/[^/]+/threads/([0-9]+)$") then
       check("https://ask.fm/" .. string.match(url, "^https?://[^/]+/(.+)$"))
-      
+
     elseif string.match(url, "^https?://[^/]*ask%.fm/[^%?/]+%?page=[0-9]+$")
       or string.match(url, "^https?://[^/]*ask%.fm/[^/]+/questions%?page=[0-9]+$") then
       local found = 0
@@ -644,10 +670,9 @@ print(url, count)
     elseif string.match(url, "^https?://[^/]*ask%.fm/[0-9a-zA-Z_%-]+$") then
       local answer_count = string.match(html, '<div title="([^"]+)" class="profileTabAnswerCount text%-large"')
       local like_count = string.match(html, '<div title="([^"]+)" class="profileTabLikeCount text%-large"')
-      print(answer_count, like_count)
       local base_url = url .. "?page="
       --queue_pages(base_url, answer_count)
-      --find_max("https://ask.fm/" .. item_value .. "?page=1&no_prev_link=true", base_url)
+      find_max("https://ask.fm/" .. item_value .. "?page=1&no_prev_link=true", base_url)
       find_max("https://ask.fm/" .. item_value .. "/questions?page=1&no_prev_link=true", url .. "/questions?page=")
       --find_max("https://ask.fm/" .. item_value .. "/versus?page=1&no_prev_link=true", url .. "/versus?page=")
     end
@@ -727,7 +752,7 @@ end
 
 wget.callbacks.httploop_result = function(url, err, http_stat)
   status_code = http_stat["statcode"]
-  
+
   if not logged_response then
     url_count = url_count + 1
     io.stdout:write(url_count .. "=" .. status_code .. " " .. url["url"] .. " \n")
@@ -743,7 +768,7 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
   if not item_name then
     error("No item name found.")
   end
-  
+
   if is_new_design then
     return wget.actions.EXIT
   end
