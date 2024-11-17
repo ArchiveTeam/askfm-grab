@@ -527,16 +527,20 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     check(url)
     body_data = nil
   end
-
-  local function calc_pages(count_s)
+  
+  local function read_number(s)
     local num = ""
-    for s in string.gmatch(count_s, "([0-9]+)") do
+    for s in string.gmatch(s, "([0-9]+)") do
       num = num .. s
     end
     if string.len(num) == 0 then
       return 0
     end
-    return math.ceil(tonumber(num)/25) + 1
+    return tonumber(num)
+  end
+
+  local function calc_pages(count_s)
+    return math.ceil(read_number(count_s)/25) + 1
   end
 
   local function queue_pages(partial_url, count)
@@ -641,7 +645,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       for _, key in pairs({"like", "reward"}) do
         local count = string.match(html, '<a class="icon%-' .. key .. '"[^>]+>%s*</a>%s*<a class="counter" href="[^"]+/' .. id .. '">([^<]+)')
-        if count and tonumber(string.match(count, "([0-9]+)")) > 9 then
+        count = read_number(count)
+        print(key, count)
+        if count and count > 9 then
           check(url .. "/fans/" .. key .. "s?page=" .. 1)
           --queue_pages(url .. "/fans/" .. key .. "s?page=", count)
         end
@@ -649,7 +655,8 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
 
     elseif string.match(url, "^https?://[^/]*ask%.fm/[^/]+/photopolls/[0-9]+$") then
       local count = string.match(html, '<a class="voteCount" href="[^"]+/' .. id .. '">([^<]+)')
-      if count and tonumber(string.match(count, "([0-9]+)")) > 0 then
+      count = read_number(count)
+      if count and count > 0 then
         -- yes with /answers/
         check(string.match(url, "^(https?://[^/]+/[^/]+/)") .. "answers/" .. id .. "/fans/votes?page=1")
         --queue_pages(url .. "?page=", count)
@@ -680,6 +687,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       local like_count = string.match(html, '<div title="([^"]+)" class="profileTabLikeCount text%-large"')
       local base_url = url .. "?page="
       local answer_step_start = calc_pages(answer_count) + 1
+      print(answer_step_start)
       if answer_step_start > 1000 then
         answer_step_start = 0
       end
