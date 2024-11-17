@@ -202,7 +202,7 @@ allowed = function(url, parenturl)
       )
       and not (
         string.match(parenturl, "^https?://[^/]+/[^/]+/versus")
-        or string.match(parenturl, "^https://[^/]+/countries/[a-z]+/shoutouts/")
+        or string.match(parenturl, "^https://[^/]+/countries/[a-z]+/shoutouts/[0-9]+$")
       )
     )
     or (
@@ -641,7 +641,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       end
       for _, key in pairs({"like", "reward"}) do
         local count = string.match(html, '<a class="icon%-' .. key .. '"[^>]+>%s*</a>%s*<a class="counter" href="[^"]+/' .. id .. '">([^<]+)')
-        if count and tonumber(string.match(count, "([0-9]+)")) > 0 then
+        if count and tonumber(string.match(count, "([0-9]+)")) > 9 then
           check(url .. "/fans/" .. key .. "s?page=" .. 1)
           --queue_pages(url .. "/fans/" .. key .. "s?page=", count)
         end
@@ -679,7 +679,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       local answer_count = string.match(html, '<div title="([^"]+)" class="profileTabAnswerCount text%-large"')
       local like_count = string.match(html, '<div title="([^"]+)" class="profileTabLikeCount text%-large"')
       local base_url = url .. "?page="
-      local answer_step_start = 2 * (calc_pages(answer_count)+1)
+      local answer_step_start = calc_pages(answer_count) + 1
       if answer_step_start > 1000 then
         answer_step_start = 0
       end
