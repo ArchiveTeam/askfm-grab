@@ -527,7 +527,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     check(url)
     body_data = nil
   end
-  
+
   local function read_number(s)
     local num = ""
     for s in string.gmatch(s, "([0-9]+)") do
@@ -644,19 +644,18 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         end
       end
       for _, key in pairs({"like", "reward"}) do
-        local count = string.match(html, '<a class="icon%-' .. key .. '"[^>]+>%s*</a>%s*<a class="counter" href="[^"]+/' .. id .. '">([^<]+)')
+        local count = string.match(html, '<a class="icon%-' .. key .. '"[^>]+>%s*</a>%s*<a class="counter"[^>]+href="[^"]+/' .. id .. '">([^<]+)')
         count = read_number(count)
-        print(key, count)
-        if count and count > 9 then
+        if count > 9 then
           check(url .. "/fans/" .. key .. "s?page=" .. 1)
           --queue_pages(url .. "/fans/" .. key .. "s?page=", count)
         end
       end
 
     elseif string.match(url, "^https?://[^/]*ask%.fm/[^/]+/photopolls/[0-9]+$") then
-      local count = string.match(html, '<a class="voteCount" href="[^"]+/' .. id .. '">([^<]+)')
+      local count = string.match(html, '<a class="voteCount"[^>]+href="[^"]+/' .. id .. '">([^<]+)')
       count = read_number(count)
-      if count and count > 0 then
+      if count > 0 then
         -- yes with /answers/
         check(string.match(url, "^(https?://[^/]+/[^/]+/)") .. "answers/" .. id .. "/fans/votes?page=1")
         --queue_pages(url .. "?page=", count)
@@ -687,11 +686,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       local like_count = string.match(html, '<div title="([^"]+)" class="profileTabLikeCount text%-large"')
       local base_url = url .. "?page="
       local answer_step_start = calc_pages(answer_count) + 1
-      print(answer_step_start)
       if answer_step_start > 1000 then
         answer_step_start = 0
       end
-      print('found', answer_step_start)
       --queue_pages(base_url, answer_count)
       find_max("https://ask.fm/" .. item_value .. "?page=1&no_prev_link=true", base_url, answer_step_start)
       find_max("https://ask.fm/" .. item_value .. "/questions?page=1&no_prev_link=true", url .. "/questions?page=", answer_step_start)
@@ -806,9 +803,12 @@ wget.callbacks.httploop_result = function(url, err, http_stat)
     io.stdout:flush()
     tries = tries + 1
     local maxtries = 5
-    if item_type == "asset"
-      and status_code == 403 then
-      maxtries = 0
+    if status_code == 403 then
+      if item_type == "asset" then
+        maxtries = 0
+      elseif string.match(url["url"], "^https?://ask%.fm/.") then
+        maxtries = 10
+      end
     end
     if tries > maxtries then
       io.stdout:write(" Skipping.\n")
