@@ -679,7 +679,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           ids[id] = true
         end
       end
-      assert(found > 0)
+      if found == 0 then
+        abort_item()
+        return nil
+      end
+      --assert(found > 0)
 
     elseif string.match(url, "^https?://[^/]*ask%.fm/[0-9a-zA-Z_%-]+$") then
       local answer_count = string.match(html, '<div title="([^"]+)" class="profileTabAnswerCount text%-large"')
