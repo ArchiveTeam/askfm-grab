@@ -756,6 +756,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     and not (
       http_stat["statcode"] == 301
       and string.match(url["url"], "^https?://ask%.fm/[^/]+/threads/[0-9]")
+      and string.match(url["url"], "^https?://ask%.fm/[^/]+/answer/[0-9]")
     ) then
     retry_url = true
     return false
