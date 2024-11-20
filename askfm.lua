@@ -383,15 +383,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     -- First, remove any '//' that appear immediately after the numeric ID
     url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)//.*", "%1")
 
-    -- Next, remove any '&' that appear immediately after the numeric ID
-    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)&.*", "%1")
-
-    -- Finally, remove any invalid characters directly after the numeric ID
+    -- Finally, remove any invalid characters directly after the numeric ID, including &
     url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)([^/?#].*)", "%1")
 
     return url
   end
-
 
   local function check(newurl)
     local post_body = nil
