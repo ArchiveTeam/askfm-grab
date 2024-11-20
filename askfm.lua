@@ -377,11 +377,21 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
 
   -- by lennier2
   local function clean_url(url)
-    -- Remove any extra data appended directly after numeric IDs in 'answer' or 'answers' URLs,
-    -- but keep valid path segments like '/fans/likes'.
-    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)[^&/?#]*", "%1")
+    -- Remove any extra data appended directly after numeric IDs in 'answer' or 'answers' URLs, but keep valid path segments like '/fans/likes'.
+    -- This includes any occurrences of '//', '&', or other invalid characters.
+
+    -- First, remove any '//' that appear immediately after the numeric ID
+    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)//.*", "%1")
+
+    -- Next, remove any '&' that appear immediately after the numeric ID
+    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)&.*", "%1")
+
+    -- Finally, remove any invalid characters directly after the numeric ID
+    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)([^/?#].*)", "%1")
+
     return url
   end
+
 
   local function check(newurl)
     local post_body = nil
