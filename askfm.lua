@@ -349,6 +349,20 @@ percent_encode_url = function(newurl)
   return result
 end
 
+-- by lennier2
+local function clean_url(url)
+  -- Remove any extra data appended directly after numeric IDs in 'answer' or 'answers' URLs, but keep valid path segments like '/fans/likes'.
+  -- This includes any occurrences of '//', '&', or other invalid characters.
+
+  -- First, remove any '//' that appear immediately after the numeric ID
+  url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)//.*", "%1")
+
+  -- Finally, remove any invalid characters directly after the numeric ID, including &
+  url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)([^/?#].*)", "%1")
+
+  return url
+end
+
 wget.callbacks.get_urls = function(file, url, is_css, iri)
   local urls = {}
   local html = nil
@@ -375,20 +389,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     return string.lower(a) .. b
   end
 
-  -- by lennier2
-  local function clean_url(url)
-    -- Remove any extra data appended directly after numeric IDs in 'answer' or 'answers' URLs, but keep valid path segments like '/fans/likes'.
-    -- This includes any occurrences of '//', '&', or other invalid characters.
-
-    -- First, remove any '//' that appear immediately after the numeric ID
-    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)//.*", "%1")
-
-    -- Finally, remove any invalid characters directly after the numeric ID, including &
-    url = string.gsub(url, "^(https?://ask%.fm/[^/]+/answers?/[0-9]+)([^/?#].*)", "%1")
-
-    return url
-  end
-
   local function check(newurl)
     local post_body = nil
     local post_url = nil
@@ -406,7 +406,10 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
     while string.find(url_, "&amp;") do
       url_ = string.gsub(url_, "&amp;", "&")
     end
-    url_ = clean_url(url_)
+    url2 = clean_url(url_)
+    if url2 ~= url_ then
+      check(url2)
+    end
     if (
         string.match(url_, "/fans/likes%?")
         or string.match(url_, "/fans/rewards%?")
@@ -639,7 +642,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       check(next_url)
     end
   end
-
   if allowed(url)
     and status_code < 300
     and not string.match(url, "^https?://c[a-z][a-z][a-z]%.ask%.fm/.") then
@@ -774,6 +776,10 @@ wget.callbacks.write_to_warc = function(url, http_stat)
         string.match(url["url"], "^https?://ask%.fm/[^/]+/threads/[0-9]")
         or string.match(url["url"], "^https?://ask%.fm/[^/]+/answer/[0-9]")
       )
+    )
+    and not (
+      http_stat["statcode"] == 404
+      and clean_url(url["url"]) ~= url["url"]
     ) then
     retry_url = true
     return false
