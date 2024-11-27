@@ -77,7 +77,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20241121.01'
+VERSION = '20241127.01'
 USER_AGENT = 'Mozilla/5.0 (X11; Linux i686; rv:124.0) Gecko/20100101 Firefox/124.0'
 TRACKER_ID = 'askfm'
 TRACKER_HOST = 'legacy-api.arpa.li'
@@ -366,14 +366,14 @@ project = Project(
     title=TRACKER_ID,
     project_html='''
         <img class="project-logo" alt="Project logo" src="https://wiki.archiveteam.org/images/f/f4/Askfm-icon.webp" height="50px" title=""/>
-        <h2>ASKfm <span class="links"><a href="https://ask.fm/">Website</a> &middot; <a href="http://tracker.archiveteam.org/askfm/">Leaderboard</a> &middot; <a href="https://wiki.archiveteam.org/index.php/ASKfm">Wiki</a></span></h2>
+        <h2>ASKfm <span class="links"><a href="https://ask.fm/">Website</a> &middot; <a href="https://tracker.archiveteam.org/askfm/">Leaderboard</a> &middot; <a href="https://wiki.archiveteam.org/index.php/ASKfm">Wiki</a></span></h2>
         <p>Archiving ASKfm.</p>
     '''
 )
 
 pipeline = Pipeline(
     CheckIP(),
-    GetItemFromTracker('http://{}/{}/multi={}/'
+    GetItemFromTracker('https://{}/{}/multi={}/'
         .format(TRACKER_HOST, TRACKER_ID, MULTI_ITEM_SIZE),
         downloader, VERSION),
     PrepareDirectories(warc_prefix=TRACKER_ID),
@@ -403,7 +403,7 @@ pipeline = Pipeline(
         name='shared:rsync_threads', title='Rsync threads',
         description='The maximum number of concurrent uploads.'),
         UploadWithTracker(
-            'http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
+            'https://%s/%s' % (TRACKER_HOST, TRACKER_ID),
             downloader=downloader,
             version=VERSION,
             files=[
@@ -420,7 +420,7 @@ pipeline = Pipeline(
         ),
     ),
     MaybeSendDoneToTracker(
-        tracker_url='http://%s/%s' % (TRACKER_HOST, TRACKER_ID),
+        tracker_url='https://%s/%s' % (TRACKER_HOST, TRACKER_ID),
         stats=ItemValue('stats')
     )
 )
